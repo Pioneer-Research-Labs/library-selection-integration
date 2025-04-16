@@ -87,6 +87,7 @@ def calculate_lr_df(df_counts, df_psi_freq, fill_value):
 def calculate_fitness(counts_merge, df_psi_freq, keep_dropouts=True, base_timepoint=0):
     '''
     Calculate barcodes x fitness df
+    Note that we only keep barcodes that appear at least once in the non-base timepoint
     '''
     if keep_dropouts:
         fill_value=0
