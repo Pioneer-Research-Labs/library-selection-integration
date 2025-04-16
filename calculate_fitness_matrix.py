@@ -2,33 +2,45 @@
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+from os.path import join
 
 # Pseudocode
 # Pivot table on nonzero days to get lr_corr wide format
 # Get unique indices to subset the day 0 data (otherwise we are inefficient and use lots of useless barcodes)
 # Calculate lr_corr - lr0_corr
 
-def load_and_merge_data(counts_path, metadata_path):
+def load_and_merge_data(results_path, metadata_file, min_counts=5):
     '''
     Load counts and metadata and merge
     '''
-    # Load counts
-    counts = pd.read_csv(counts_path)
-    
     # Load metadata
-    metadata = pd.read_csv(metadata_path)
+    metadata = pd.read_csv(join(results_path, metadata_file))
+
+    # Load corrected counts from metadata samples
+    samples = metadata['sample']
+
+    # Load counts from each sample and merge
+    counts = []
+    for sample in tqdm(samples, desc='Loading data'):
+        try:
+            counts.append(pd.read_csv(join(
+                results_path, sample, sample + '_' + str(min_counts) + '_barcodes_freq.csv')))
+        except FileNotFoundError:
+            print('No counts file found for sample: ', sample)
+            continue
+    counts = pd.concat(counts)
     
-    # Merge counts and metadata
-    counts_merge = pd.merge(counts, metadata, on=['library','condition','replicate'])
+    # Merge counts with metadata
+    counts_merge = pd.merge(counts, metadata, on=['sample'])
     
     return counts_merge
 
-def calculate_psi_freq(counts_merge):
+def calculate_psi_freq(counts_merge, base_timepoint=0):
     # Calculate psi-freq and psi-corrected lr
     # psi-freq is the derived pseudofrequency from the boba-seq paper, which works out to 1/sqrt(N0*N)
     # N0 for each sample
     N0_dict = counts_merge.loc[
-        counts_merge['timepoint'] == 0, ['library','condition','replicate','N']].set_index(
+        counts_merge['timepoint'] == base_timepoint, ['library','condition','replicate','N']].set_index(
         ['library','condition','replicate']).to_dict()
 
     # Calculate N0, psi, and corrected lr
@@ -42,7 +54,7 @@ def calculate_psi_freq(counts_merge):
                             values='psi_freq',
                             index=['library','condition','replicate'],
                             columns='timepoint')
-    df_psi_freq = df_psi_freq.loc[:,df_psi_freq.columns != 0]
+    df_psi_freq = df_psi_freq.loc[:,df_psi_freq.columns != base_timepoint]
 
     return df_psi_freq
 
@@ -72,7 +84,7 @@ def calculate_lr_df(df_counts, df_psi_freq, fill_value):
 
     return df_lr
 
-def calculate_fitness(counts_merge, df_psi_freq, keep_dropouts=True):
+def calculate_fitness(counts_merge, df_psi_freq, keep_dropouts=True, base_timepoint=0):
     '''
     Calculate barcodes x fitness df
     '''
@@ -82,8 +94,10 @@ def calculate_fitness(counts_merge, df_psi_freq, keep_dropouts=True):
         fill_value=np.nan
         
     df_fitness = []
-    counts_day0 = counts_merge[counts_merge['timepoint'] == 0].set_index(['library','condition','replicate','barcode'])
-    g = counts_merge[counts_merge['timepoint'] != 0].groupby(['library','condition','replicate']) # Skip day 0
+    counts_day0 = counts_merge[
+        counts_merge['timepoint'] == base_timepoint].set_index(['library','condition','replicate','barcode'])
+    g = counts_merge[
+        counts_merge['timepoint'] != base_timepoint].groupby(['library','condition','replicate']) # Skip base timepoint
     keys = list(g.groups.keys())
     
     for key in tqdm(keys):
@@ -92,17 +106,17 @@ def calculate_fitness(counts_merge, df_psi_freq, keep_dropouts=True):
             df_fitness_sub = calculate_lr_df(counts_sub, df_psi_freq, fill_value)
             counts_sub_merge = pd.merge(df_fitness_sub, counts_day0['lr_corr'],
                                         on=['library','condition','replicate','barcode'],
-                                        how='left').rename(columns={'lr_corr':0})
+                                        how='left').rename(columns={'lr_corr':base_timepoint})
             counts_sub_merge = counts_sub_merge.reset_index().set_index(['library','condition','replicate','barcode'])
             df_fitness.append(counts_sub_merge)
     df_fitness = pd.concat(df_fitness)
     
     # Subtract lr by lr0 to get fitness
     for c in df_fitness.columns:
-        df_fitness[c] = df_fitness[c] - df_fitness[0]
+        df_fitness[c] = df_fitness[c] - df_fitness[base_timepoint]
 
-    # Remove timepoint 0 column
-    df_fitness = df_fitness.drop(columns=[0])
+    # Remove base timepoint column
+    df_fitness = df_fitness.drop(columns=[base_timepoint])
     
     # Melt to reshape
     df_fitness = pd.melt(df_fitness.reset_index(),
