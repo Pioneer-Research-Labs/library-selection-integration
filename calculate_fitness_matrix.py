@@ -21,6 +21,9 @@ def load_metadata(results_path, metadata_file):
     metadata.set_index(['library','condition','strain'], inplace=True)
     metadata.sort_index(inplace=True)
 
+    # Convert sample IDs to string
+    metadata['sample'] = metadata['sample'].astype(str)
+
     sample_dict = {}
 
     for g in groups:
