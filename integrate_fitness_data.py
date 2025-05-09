@@ -152,6 +152,6 @@ def create_integrated_dataframe(library, df_fitness, intersection, correction_ma
 
     # Merge with fitness data
     df_fitness.set_index('barcode', inplace=True)
-    merge = pd.merge(library_corr, df_fitness, left_index=True, right_index=True, how='inner')
+    merge = pd.merge(library_corr, df_fitness, left_index=True, right_index=True, how='inner').reset_index()
 
     return merge

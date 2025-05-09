@@ -66,6 +66,12 @@ if __name__ == '__main__':
         print('Calculating fitness...')
         df_fitness = calculate_fitness(counts_merge, df_psi_freq, base_timepoint=base_timepoint)
         
+        # Save fitness data
+        out_name = out_prefix + '_' + str(g[0]) + '_' + str(g[1]) + '_' + str(g[2])
+        print('Saving raw fitness data...')
+        df_fitness.to_parquet(join(short_read_path, out_name + '.parquet'), index=False)
+        print('Data saved.')
+
         # Load library data
         library_id = g[0].split('-')[0] # Only use the prefix library ID 
         print('Loading library data...')
@@ -91,7 +97,7 @@ if __name__ == '__main__':
         print('Barcodes corrected.')
 
         # Save merged data
-        out_name = out_prefix + '_' + str(g[0]) + '_' + str(g[1]) + '_' + str(g[2])
+        out_name = out_prefix + '_integrated_' + str(g[0]) + '_' + str(g[1]) + '_' + str(g[2])
         print('Saving integrated fitness data...')
-        merge.to_parquet(join(short_read_path, out_name + '.parquet'), index=True)
+        merge.to_parquet(join(short_read_path, out_name + '.parquet'), index=False)
         print('Data saved.')
