@@ -9,6 +9,13 @@ from calculate_fitness_matrix import (
     calculate_psi_freq,
     calculate_fitness
 )
+from integrate_fitness_data import (
+    load_library_data,
+    get_filtered_barcodes_to_correct,
+    calculate_distance_matrix,
+    error_correct_barcodes,
+    create_integrated_dataframe  
+)
 
 if __name__ == '__main__':
     # Get short read results path and metadata filename
@@ -59,7 +66,32 @@ if __name__ == '__main__':
         print('Calculating fitness...')
         df_fitness = calculate_fitness(counts_merge, df_psi_freq, base_timepoint=base_timepoint)
         
-        # Save fitness data
+        # Load library data
+        library_id = g[0].split('-')[0] # Only use the prefix library ID 
+        print('Loading library data...')
+        library = load_library_data(library_id)
+        print('Library data loaded.')
+
+        # Merge library data with fitness data
+        print('Correcting barcodes...')
+        
+        # Get filtered barcodes to correct
+        lr_filter, sr_filter, intersection = get_filtered_barcodes_to_correct(library, df_fitness)
+        
+        # Calculate distance matrix
+        distances = calculate_distance_matrix(lr_filter, sr_filter)
+
+        # Do the actual error correction
+        correction_map, correctable_bcs = error_correct_barcodes(lr_filter, sr_filter, distances)
+
+        # Create integrated dataframe
+        merge = create_integrated_dataframe(
+            library, df_fitness, intersection, correction_map, correctable_bcs)
+        
+        print('Barcodes corrected.')
+
+        # Save merged data
         out_name = out_prefix + '_' + str(g[0]) + '_' + str(g[1]) + '_' + str(g[2])
-        print('Saving fitness data...')
-        df_fitness.to_parquet(join(short_read_path, out_name + '.parquet'), index=False)
+        print('Saving integrated fitness data...')
+        merge.to_parquet(join(short_read_path, out_name + '.parquet'), index=True)
+        print('Data saved.')
