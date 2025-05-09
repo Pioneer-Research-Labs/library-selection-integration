@@ -145,6 +145,9 @@ def calculate_fitness(counts_merge, df_psi_freq, keep_dropouts=True, base_timepo
             id_vars=['library','condition','strain','replicate','barcode'],
             var_name='timepoint',
             value_name='fitness')
+    
+    # Drop duplicate rows
+    df_fitness.drop_duplicates(inplace=True)
 
     return df_fitness
 

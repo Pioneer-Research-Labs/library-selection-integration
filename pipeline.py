@@ -12,8 +12,7 @@ from calculate_fitness_matrix import (
 from integrate_fitness_data import (
     load_library_data,
     get_filtered_barcodes_to_correct,
-    calculate_distance_matrix,
-    error_correct_barcodes,
+    calculate_correction_map,
     create_integrated_dataframe  
 )
 
@@ -84,15 +83,12 @@ if __name__ == '__main__':
         # Get filtered barcodes to correct
         lr_filter, sr_filter, intersection = get_filtered_barcodes_to_correct(library, df_fitness)
         
-        # Calculate distance matrix
-        distances = calculate_distance_matrix(lr_filter, sr_filter)
-
-        # Do the actual error correction
-        correction_map, correctable_bcs = error_correct_barcodes(lr_filter, sr_filter, distances)
+        # Calculate correction map
+        correction_map = calculate_correction_map(lr_filter, sr_filter)
 
         # Create integrated dataframe
         merge = create_integrated_dataframe(
-            library, df_fitness, intersection, correction_map, correctable_bcs)
+            library, df_fitness, intersection, correction_map)
         
         print('Barcodes corrected.')
 

@@ -3,7 +3,8 @@
 import pandas as pd
 import numpy as np
 from os.path import join
-from tqdm import tqdm
+from tqdm.auto import tqdm
+from rapidfuzz import process, fuzz
 from Levenshtein import distance
 from scipy.sparse import vstack, lil_array, csr_array
 from multiprocessing import Pool, cpu_count
@@ -11,8 +12,8 @@ from multiprocessing import Pool, cpu_count
 LIBRARY_PATH = 's3://pioneer-sequencing/libraries'
 MIN_BC_LENGTH = 42
 MAX_BC_LENGTH = 46
-N_CORES = 32
-DISTANCE_CUTOFF = 2 # This corresponds to ~0.0001 probability of distances >=3 for a 44bp barcode
+N_CORES = 90 # Number of cores to use for multiprocessing
+DISTANCE_CUTOFF = 3 # Use edit distance of 3 as cutoff for correction
 
 def compute_wrapper(args):
     '''
@@ -65,93 +66,70 @@ def get_filtered_barcodes_to_correct(library, df_fitness):
     
     return lr_filter, sr_filter, intersection
 
-def calculate_distance_matrix(lr_filter, sr_filter):
+def calculate_correction_map(lr_filter, sr_filter):
     '''
-    Calculate Levenshtein distance matrix between correctable long read and short read barcodes
-    using multiprocessing with a progress bar
+    Calculate correction map between short read to long read barcodes based on RapidFuzz
     '''
-    # Generate inputs
-    inputs = lr_filter
+    def split_given_size(a, size):
+        return np.split(a, np.arange(size,len(a),size))
 
-    # Prepare arguments as tuples for each row
-    task_inputs = [(row, sr_filter, DISTANCE_CUTOFF) for row in inputs]
+    split_size = 1000 # Use chunks of 1000 barcodes
+    queries = sr_filter
+    choices = lr_filter
+    splits = split_given_size(queries, split_size)
 
-    # Set number of processes
-    n_cores = min(cpu_count(), N_CORES)
+    min_dist = [] # Minimum pairwise edit distance between queries and choices
+    arg_min = [] # Index of choice barcode with minimum pairwise edit distance
 
-    # Use multiprocessing Pool
-    with Pool(processes=n_cores) as pool:
-        results = list(tqdm(pool.imap(
-            compute_wrapper, task_inputs), total=len(task_inputs), desc="Calculating Levenshtein distances"))
-    # results = list(map(compute_wrapper, task_inputs))
+    # Process in batches to reduce memory overhead
+    for split in tqdm(splits):
+        distance_split = process.cdist(split, 
+                                       choices, 
+                                       scorer=distance, 
+                                       score_cutoff=DISTANCE_CUTOFF, 
+                                       dtype=np.uint8, workers=N_CORES)
+        min_dist.append(distance_split.min(axis=1))
+        arg_min.append(np.argmin(distance_split, axis=1))
+    min_dist = np.concatenate(min_dist)
+    arg_min = np.concatenate(arg_min)
 
-    # Stack sparse arrays to get the final distance matrix
-    distances = vstack(results)
+    # Calculate correctable queries and choices
+    queries_to_correct = np.where(min_dist <= DISTANCE_CUTOFF)[0]
+    target_choices = arg_min[queries_to_correct]
 
-    return distances
-
-def error_correct_barcodes(lr_filter, sr_filter, distances):
-    '''
-    Error correct long read barcodes based on Levenshtein distance matrix
-    '''
-    # Get indices of nonzero distances less than cutoff
-    nz_indices = distances.nonzero()
-    np_lr_sub = np.array(lr_filter) # Numpy array of long read barcodes
-    np_sr_sub = np.array(sr_filter) # Numpy array of short read barcodes
-
-    # Make dataframe of correctable barcodes
-    correctable_bcs = pd.DataFrame(index=np.unique(np_lr_sub[nz_indices[0]]),
-                                columns=['distance','possible_mapped_bc'],
-                                data=[])
-
-    # Pull out distances, mapped barcodes, and downstream stats
-    for i, j in zip(nz_indices[0], nz_indices[1]):
-        try:
-            correctable_bcs.loc[np_lr_sub[i],'distance'].append(distances[i,j])
-            correctable_bcs.loc[np_lr_sub[i],'possible_mapped_bc'].append(np_sr_sub[j])
-        except AttributeError:
-            correctable_bcs.loc[np_lr_sub[i],'distance'] = [distances[i,j]]
-            correctable_bcs.loc[np_lr_sub[i],'possible_mapped_bc'] = [np_sr_sub[j]]
-    correctable_bcs['n'] = [len(x) for x in correctable_bcs['distance']]
-    correctable_bcs['min_dist'] = [min(x) for x in correctable_bcs['distance']]
-    correctable_bcs['n_min_dist'] = [
-        sum(np.array(x)==y) for x,y in zip(correctable_bcs['distance'],correctable_bcs['min_dist'])]
-
-    # Filter out barcodes that have more than one mappable target based on minimum distance
-    correctable_bcs = correctable_bcs[correctable_bcs.n_min_dist == 1]
-    correctable_bcs['mapped_bc'] = [np.array(x)[np.array(y) == z][0] for x,y,z in zip(correctable_bcs['possible_mapped_bc'],
-                                                                        correctable_bcs['distance'],
-                                                                        correctable_bcs['min_dist'])]
-
-    # Save the mapping dictionary
-    correction_map = correctable_bcs['mapped_bc'].to_dict()
+    # Calculate barcode correction map
+    correction_map = {
+        queries[queries_to_correct[i]]: choices[target_choices[i]] for i in range(len(queries_to_correct))
+    }
 
     # Verify that the mapping are the minimum distance
     assert np.array([distance(x,y)==z for x,y,z in zip(
-        correctable_bcs.index, 
-        correctable_bcs.mapped_bc,
-        correctable_bcs.min_dist)]).all()
+        np.array(sr_filter)[queries_to_correct], 
+        np.array(lr_filter)[target_choices],
+        min_dist[queries_to_correct])]).all()
+    
+    # Verify the mapping
+    assert np.array([correction_map[x] == y for x,y in zip(
+        np.array(sr_filter)[queries_to_correct], 
+        np.array(lr_filter)[target_choices])]).all()
 
-    return correction_map, correctable_bcs
+    return correction_map
 
-def create_integrated_dataframe(library, df_fitness, intersection, correction_map, correctable_bcs):
+def create_integrated_dataframe(library, df_fitness, intersection, correction_map):
     '''
     Create an integrated dataframe with error corrected barcodes
     '''
-    # Create a new corrected library dataframe
-    library_corr = library[(library.bc_sequence.isin(list(intersection))) |
-                           (library.bc_sequence.isin(correctable_bcs.index))]
+    # Create corrected short-read barcode column
+    df_fitness['bc_sequence'] = df_fitness['barcode'].map(correction_map)
+    df_fitness.loc[df_fitness['barcode'].isin(intersection), 'bc_sequence'] = df_fitness['barcode']
 
-    # Create a new column for correction status
-    library_corr.loc[:,'corrected'] = False
-    library_corr['corrected_bc_sequence'] = library_corr['bc_sequence'].copy()
-    library_corr.loc[library_corr.bc_sequence.isin(correctable_bcs.index),'corrected'] = True
-    library_corr.loc[library_corr.bc_sequence.isin(correctable_bcs.index),'bc_sequence'] = library_corr.loc[
-        library_corr.bc_sequence.isin(correctable_bcs.index),'corrected_bc_sequence'].map(correction_map)
-    library_corr.set_index('corrected_bc_sequence', inplace=True)
+    # Create correction status label
+    df_fitness['correction_status'] = 'corrected'
+    df_fitness.loc[df_fitness['barcode'].isin(intersection), 'correction_status'] = 'exact_match'
+    df_fitness.loc[pd.isnull(df_fitness['bc_sequence']), 'correction_status'] = 'uncorrected'
 
-    # Merge with fitness data
-    df_fitness.set_index('barcode', inplace=True)
-    merge = pd.merge(library_corr, df_fitness, left_index=True, right_index=True, how='inner').reset_index()
+    # Merge library data with fitness data
+    df_fitness = df_fitness.rename(columns={'barcode':'uncorrected_bc_sequence'})
+    merge = pd.merge(library, df_fitness, on='bc_sequence', how='right')
 
     return merge
