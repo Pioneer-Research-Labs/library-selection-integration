@@ -2,6 +2,7 @@
 ### Calculates fitness for each unique library/strain/condition combination
 ### TODO: integration with long read data
 import argparse
+import pandas as pd
 from os.path import join
 from calculate_fitness_matrix import (
     load_metadata,
@@ -64,6 +65,11 @@ if __name__ == '__main__':
         # Calculate fitness
         print('Calculating fitness...')
         df_fitness = calculate_fitness(counts_merge, df_psi_freq, base_timepoint=base_timepoint)
+
+        # Merge frequency information with fitness data
+        print('Merging frequency information with fitness data...')
+        merge_cols = ['library', 'condition', 'strain', 'replicate', 'barcode','n','freq']
+        df_fitness = pd.merge(df_fitness, counts_merge[merge_cols], on=['library', 'condition', 'strain', 'replicate', 'barcode'], how='left')
         
         # Save fitness data
         out_name = out_prefix + '_' + str(g[0]) + '_' + str(g[1]) + '_' + str(g[2])
