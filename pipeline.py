@@ -68,8 +68,9 @@ if __name__ == '__main__':
 
         # Merge frequency information with fitness data
         print('Merging frequency information with fitness data...')
-        merge_cols = ['library', 'condition', 'strain', 'replicate', 'barcode','n','freq']
-        df_fitness = pd.merge(df_fitness, counts_merge[merge_cols], on=['library', 'condition', 'strain', 'replicate', 'barcode'], how='left')
+        merge_cols = ['library', 'condition', 'strain', 'replicate','timepoint','barcode','n','freq']
+        df_fitness = pd.merge(
+            df_fitness, counts_merge[merge_cols], on=['library', 'condition', 'strain', 'replicate', 'timepoint', 'barcode'], how='left')
         
         # Save fitness data
         out_name = out_prefix + '_' + str(g[0]) + '_' + str(g[1]) + '_' + str(g[2])
