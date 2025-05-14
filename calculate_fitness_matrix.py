@@ -95,7 +95,7 @@ def calculate_lr_df(df_counts, df_psi_freq, fill_value):
                         on=['library','condition','strain','replicate'],
                         suffixes=('_freq','_psi_freq')
                        ).set_index(['library','condition','strain','replicate','barcode'])
-
+    
     # Generate lr dataframe
     df_lr = pd.DataFrame(index=df_merge.index,
                          columns=df_pivot.columns)
@@ -146,8 +146,16 @@ def calculate_fitness(counts_merge, df_psi_freq, keep_dropouts=True, base_timepo
             var_name='timepoint',
             value_name='fitness')
     
+    # Drop nan fitnesses
+    df_fitness = df_fitness.dropna(subset=['fitness'])
+    
     # Drop duplicate rows
     df_fitness.drop_duplicates(inplace=True)
+
+    # Merge frequency information with fitness data
+    merge_cols = ['library', 'condition', 'strain', 'replicate','timepoint','barcode','n','freq']
+    df_fitness = pd.merge(
+        df_fitness, counts_merge[merge_cols], on=['library', 'condition', 'strain', 'replicate', 'timepoint', 'barcode'], how='left')
 
     return df_fitness
 
