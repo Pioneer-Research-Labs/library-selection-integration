@@ -97,7 +97,8 @@ if __name__ == '__main__':
         
         print('Barcodes corrected.')
 
-        print('Uncorrected barcodes: ', len(merge[merge['correction_status'] == 'uncorrected']))
+        print('Uncorrected barcodes: ', 
+              len(merge[merge['correction_status'] == 'uncorrected'].uncorrected_bc_sequence.unique()))
 
         # Save merged data
         out_name = out_prefix + '_integrated_' + str(g[0]) + '_' + str(g[1]) + '_' + str(g[2])
