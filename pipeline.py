@@ -2,6 +2,7 @@
 ### Calculates fitness for each unique library/strain/condition combination
 ### TODO: integration with long read data
 import argparse
+import pandas as pd
 from os.path import join
 from calculate_fitness_matrix import (
     load_metadata,
@@ -82,15 +83,22 @@ if __name__ == '__main__':
         
         # Get filtered barcodes to correct
         lr_filter, sr_filter, intersection = get_filtered_barcodes_to_correct(library, df_fitness)
+
         
         # Calculate correction map
         correction_map = calculate_correction_map(lr_filter, sr_filter)
+
+        print('Exact match barcodes: ', len(intersection))
+        print('Correctable barcodes: ', len(correction_map))
 
         # Create integrated dataframe
         merge = create_integrated_dataframe(
             library, df_fitness, intersection, correction_map)
         
         print('Barcodes corrected.')
+
+        print('Uncorrected barcodes: ', 
+              len(merge[merge['correction_status'] == 'uncorrected'].uncorrected_bc_sequence.unique()))
 
         # Save merged data
         out_name = out_prefix + '_integrated_' + str(g[0]) + '_' + str(g[1]) + '_' + str(g[2])
