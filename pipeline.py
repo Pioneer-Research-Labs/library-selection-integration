@@ -65,12 +65,6 @@ if __name__ == '__main__':
         # Calculate fitness
         print('Calculating fitness...')
         df_fitness = calculate_fitness(counts_merge, df_psi_freq, base_timepoint=base_timepoint)
-
-        # Merge frequency information with fitness data
-        print('Merging frequency information with fitness data...')
-        merge_cols = ['library', 'condition', 'strain', 'replicate','timepoint','barcode','n','freq']
-        df_fitness = pd.merge(
-            df_fitness, counts_merge[merge_cols], on=['library', 'condition', 'strain', 'replicate', 'timepoint', 'barcode'], how='left')
         
         # Save fitness data
         out_name = out_prefix + '_' + str(g[0]) + '_' + str(g[1]) + '_' + str(g[2])
@@ -89,15 +83,21 @@ if __name__ == '__main__':
         
         # Get filtered barcodes to correct
         lr_filter, sr_filter, intersection = get_filtered_barcodes_to_correct(library, df_fitness)
+
         
         # Calculate correction map
         correction_map = calculate_correction_map(lr_filter, sr_filter)
+
+        print('Exact match barcodes: ', len(intersection))
+        print('Correctable barcodes: ', len(correction_map))
 
         # Create integrated dataframe
         merge = create_integrated_dataframe(
             library, df_fitness, intersection, correction_map)
         
         print('Barcodes corrected.')
+
+        print('Uncorrected barcodes: ', len(merge[merge['correction_status'] == 'uncorrected']))
 
         # Save merged data
         out_name = out_prefix + '_integrated_' + str(g[0]) + '_' + str(g[1]) + '_' + str(g[2])

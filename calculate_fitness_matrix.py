@@ -157,5 +157,18 @@ def calculate_fitness(counts_merge, df_psi_freq, keep_dropouts=True, base_timepo
     df_fitness = pd.merge(
         df_fitness, counts_merge[merge_cols], on=['library', 'condition', 'strain', 'replicate', 'timepoint', 'barcode'], how='left')
 
+    # Keep only barcodes that exist in at least two nonzero timepoints
+    print('Filtering for barcodes that exist in at least two nonzero timepoints')
+    print('Number of barcodes before filtering: ', len(df_fitness.barcode.unique()))
+
+    timepoint_counts = df_fitness.groupby(
+        ['library','condition','strain','replicate','barcode'])['n'].count()
+    bcs_to_keep = timepoint_counts[timepoint_counts >= 2].index
+    df_fitness.set_index(['library','condition','strain','replicate','barcode'], inplace=True)
+    df_fitness = df_fitness.loc[bcs_to_keep]
+    df_fitness.reset_index(inplace=True)
+
+    print('Number of barcodes after filtering: ', len(df_fitness.barcode.unique()))
+
     return df_fitness
 
