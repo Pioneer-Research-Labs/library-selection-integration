@@ -36,7 +36,7 @@ Ensure the following scripts are in the same directory or importable:
 ## ▶️ Usage
 
 ```bash
-python master_pipeline.py --short_read_path <SHORT_READ_DIR> [--metadata <METADATA_CSV>] [--out_prefix <OUTPUT_PREFIX>] [--base_timepoint <TIMEPOINT>]
+python pipeline.py --short_read_path <SHORT_READ_DIR> [--metadata <METADATA_CSV>] [--out_prefix <OUTPUT_PREFIX>] [--base_timepoint <TIMEPOINT>]
 ```
 
 ### Arguments:
@@ -69,7 +69,7 @@ For each unique `(library, strain, condition)` group, two output files are gener
 
 ## 🧩 Code Structure
 
-* `master_pipeline.py`: Main pipeline script (this repo)
+* `pipeline.py`: Main pipeline script (this repo)
 * `calculate_fitness_matrix.py`: Functions to load data, compute psi-freq and fitness
 * `integrate_fitness_data.py`: Functions to integrate fitness with barcode data
 
