@@ -136,9 +136,6 @@ def calculate_fitness(counts_merge, df_psi_freq, keep_dropouts=True, base_timepo
     # Subtract lr by lr0 to get fitness
     for c in df_fitness.columns:
         df_fitness[c] = df_fitness[c] - df_fitness[base_timepoint]
-
-    # Remove base timepoint column
-    df_fitness = df_fitness.drop(columns=[base_timepoint])
     
     # Melt to reshape
     df_fitness = pd.melt(df_fitness.reset_index(),
