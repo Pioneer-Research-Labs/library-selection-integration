@@ -124,9 +124,9 @@ def create_integrated_dataframe(library, df_fitness, intersection, correction_ma
     df_fitness.loc[df_fitness['barcode'].isin(intersection), 'bc_sequence'] = df_fitness['barcode']
 
     # Create correction status label
-    df_fitness['correction_status'] = 'corrected'
-    df_fitness.loc[df_fitness['barcode'].isin(intersection), 'correction_status'] = 'exact_match'
-    df_fitness.loc[pd.isnull(df_fitness['bc_sequence']), 'correction_status'] = 'uncorrected'
+    df_fitness['ngs_correction_status'] = 'corrected'
+    df_fitness.loc[df_fitness['barcode'].isin(intersection), 'ngs_correction_status'] = 'exact_match'
+    df_fitness.loc[pd.isnull(df_fitness['bc_sequence']), 'ngs_correction_status'] = 'uncorrected'
 
     # Merge library data with fitness data
     df_fitness = df_fitness.rename(columns={'barcode':'uncorrected_bc_sequence'})

@@ -1,5 +1,5 @@
 ### Master pipeline
-### Calculates fitness for each unique library/strain/condition combination
+### Calculates fitness for each unique library/environment combination
 ### TODO: integration with long read data
 import argparse
 import pandas as pd
@@ -47,7 +47,7 @@ if __name__ == '__main__':
     sample_dict, metadata = load_metadata(short_read_path, metadata_file)
     print('Metadata loaded.')
 
-    # For each library/condition/strain combination, run the pipeline
+    # For each library/environment/ combination, run the pipeline
     groups = sample_dict.keys()
     for g in groups:
         samples = sample_dict[g]
@@ -67,22 +67,22 @@ if __name__ == '__main__':
         df_fitness = calculate_fitness(counts_merge, df_psi_freq, base_timepoint=base_timepoint)
         
         # Save fitness data
-        out_name = out_prefix + '_' + str(g[0]) + '_' + str(g[1]) + '_' + str(g[2])
+        out_name = out_prefix + '_' + str(g[0]) + '_' + str(g[1])
         print('Saving raw fitness data...')
         df_fitness.to_parquet(join(short_read_path, out_name + '.parquet'), index=False)
         print('Data saved.')
 
-        # Load library data
-        library_id = g[0].split('-')[0] # Only use the prefix library ID 
-        print('Loading library data...')
-        library = load_library_data(library_id)
-        print('Library data loaded.')
+        # Load base library data
+        library_id = g[2].split('-')[0] # Only use the prefix library ID 
+        print('Loading base library data...')
+        base_library = load_library_data(library_id)
+        print('Base library data loaded.')
 
         # Merge library data with fitness data
         print('Correcting barcodes...')
         
         # Get filtered barcodes to correct
-        lr_filter, sr_filter, intersection = get_filtered_barcodes_to_correct(library, df_fitness)
+        lr_filter, sr_filter, intersection = get_filtered_barcodes_to_correct(base_library, df_fitness)
 
         
         # Calculate correction map
@@ -93,15 +93,15 @@ if __name__ == '__main__':
 
         # Create integrated dataframe
         merge = create_integrated_dataframe(
-            library, df_fitness, intersection, correction_map)
+            base_library, df_fitness, intersection, correction_map)
         
         print('Barcodes corrected.')
 
         print('Uncorrected barcodes: ', 
-              len(merge[merge['correction_status'] == 'uncorrected'].uncorrected_bc_sequence.unique()))
+              len(merge[merge['ngs_correction_status'] == 'uncorrected'].uncorrected_bc_sequence.unique()))
 
         # Save merged data
-        out_name = out_prefix + '_integrated_' + str(g[0]) + '_' + str(g[1]) + '_' + str(g[2])
+        out_name = out_prefix + '_integrated_' + str(g[0]) + '_' + str(g[1])
         print('Saving integrated fitness data...')
         merge.to_parquet(join(short_read_path, out_name + '.parquet'), index=False)
         print('Data saved.')
