@@ -57,12 +57,12 @@ These are generated from running `short-read-pipeline`.
 
 ## 📤 Output
 
-For each unique `(library, strain, condition)` group, two output files are generated:
+For each unique `(library, environment)` group, two output files are generated:
 
-1. `fitness_<library>_<strain>_<condition>.parquet`
+1. `fitness_<library>_<environment>.parquet`
    → Raw fitness data
 
-2. `fitness_integrated_<library>_<strain>_<condition>.parquet`
+2. `fitness_integrated_<library>_<environment>.parquet`
    → Fitness data with library integration and barcode correction
 
 ---
