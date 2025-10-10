@@ -36,7 +36,7 @@ Ensure the following scripts are in the same directory or importable:
 ## ▶️ Usage
 
 ```bash
-python pipeline.py --short_read_path <SHORT_READ_DIR> [--metadata <METADATA_CSV>] [--out_prefix <OUTPUT_PREFIX>] [--base_timepoint <TIMEPOINT>]
+python pipeline.py --short_read_path <SHORT_READ_DIR> [--metadata <METADATA_CSV>] [--out_prefix <OUTPUT_PREFIX>] [--base_timepoint <TIMEPOINT>] [--min_counts <MIN_COUNTS>]
 ```
 
 ### Arguments:
@@ -47,7 +47,7 @@ python pipeline.py --short_read_path <SHORT_READ_DIR> [--metadata <METADATA_CSV>
 | `--metadata`        | `str` | ❌        | Metadata CSV filename (default: `metadata.csv`).        |
 | `--out_prefix`      | `str` | ❌        | Prefix for output files (default: `fitness`).           |
 | `--base_timepoint`  | `int` | ❌        | Timepoint used as the fitness reference (default: `0`). |
-
+| `--min_counts`      | `int` | ❌        | Min count for barcode reporting as set in short-read pipeline. (default: `0`) |
 ---
 
 ## 📂 Input Files

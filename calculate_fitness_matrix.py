@@ -32,7 +32,7 @@ def load_metadata(results_path, metadata_file):
     metadata.reset_index(inplace=True)
     
     return sample_dict, metadata
-def load_and_merge_data(results_path, metadata, samples, min_counts=5):
+def load_and_merge_data(results_path, metadata, samples, min_counts):
     '''
     Load counts and metadata and merge
     '''
