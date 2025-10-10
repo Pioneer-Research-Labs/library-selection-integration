@@ -25,6 +25,7 @@ if __name__ == '__main__':
     parser.add_argument("--metadata", type=str, required=False, help="Name of metadata file (default='metadata.csv').")
     parser.add_argument("--out_prefix", type=str, required=False, help="Name of output fitness file prefix (default='fitness').")
     parser.add_argument("--base_timepoint", type=int, required=False, help="Base timepoint to use as reference (default=0).")
+    parser.add_argument("--min_counts", type=int, required=False, default=0, help="Min counts set by short read pipeline (default = 0)")
 
     args = parser.parse_args()
 
@@ -55,7 +56,7 @@ if __name__ == '__main__':
 
         # Load data
         print('Loading data...')
-        counts_merge = load_and_merge_data(short_read_path, metadata, samples)
+        counts_merge = load_and_merge_data(short_read_path, metadata, samples, args.min_counts)
         print('Data loaded.')
 
         # Calculate psi-freq
