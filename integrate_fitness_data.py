@@ -155,7 +155,8 @@ def create_integrated_dataframe(library, df_fitness, intersection, correction_ma
         total_bl_freq = ('baseline_freq', 'sum'),
         n = ('n', list),
         freq = ('freq', list),
-        uncorrected_bcs = ('uncorrected_bc_sequence', list),
+        bl_freq = ('baseline_freq', list),
+        uncorrected_bc = ('uncorrected_bc_sequence', list),
         ngs_correction_status = ('ngs_correction_status', list)
     ).reset_index()
 
