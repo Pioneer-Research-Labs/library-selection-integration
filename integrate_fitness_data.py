@@ -145,8 +145,8 @@ def create_integrated_dataframe(library, df_fitness, intersection, correction_ma
     # Merge library data with fitness data
     df_fitness_copy = df_fitness_copy.rename(columns={'barcode':'uncorrected_bc_sequence'})
 
+    ### Group by all columns that are NOT uncorrected BC level data and aggregate summed metrics or lists of uncorrected BC info
     uncorrected_level_cols = ["uncorrected_bc_sequence", "freq", 'baseline_freq', "n", 'ngs_correction_status']
-
     grouping_cols = [col for col in df_fitness_copy.columns if col not in uncorrected_level_cols]
 
     barcode_data_summed = df_fitness_copy.groupby(grouping_cols).agg(
