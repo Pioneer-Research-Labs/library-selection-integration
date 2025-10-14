@@ -43,6 +43,17 @@ def load_library_data(library_id):
 
     return library
 
+def filter_corrected_library_data(library_df):
+    print("""
+Library has been corrected with Illumina sequencing.
+Preferentially retaining single entry preferring exact match then read count
+if multiple entries are found for a given barcode.
+            """)
+    library_df.sort_values(["library_correction_status", "n_reads"], ascending=False, inplace=True)
+    library_df_filt = library_df.drop_duplicates(subset=["bc_sequence"], keep='first')
+    
+    return(library_df_filt)
+
 def get_filtered_barcodes_to_correct(library, df_fitness):
     '''
     Get barcodes from long read library data and short read fitness data for error correction.
@@ -119,17 +130,35 @@ def create_integrated_dataframe(library, df_fitness, intersection, correction_ma
     '''
     Create an integrated dataframe with error corrected barcodes
     '''
+
+    df_fitness_copy = df_fitness.copy(deep=True)
+
     # Create corrected short-read barcode column
-    df_fitness['bc_sequence'] = df_fitness['barcode'].map(correction_map)
-    df_fitness.loc[df_fitness['barcode'].isin(intersection), 'bc_sequence'] = df_fitness['barcode']
+    df_fitness_copy['bc_sequence'] = df_fitness_copy['barcode'].map(correction_map)
 
     # Create correction status label
-    df_fitness['ngs_correction_status'] = 'corrected'
-    df_fitness.loc[df_fitness['barcode'].isin(intersection), 'ngs_correction_status'] = 'exact_match'
-    df_fitness.loc[pd.isnull(df_fitness['bc_sequence']), 'ngs_correction_status'] = 'uncorrected'
+    df_fitness_copy['ngs_correction_status'] = 'corrected'
+    df_fitness_copy.loc[pd.isnull(df_fitness_copy['bc_sequence']), 'ngs_correction_status'] = 'uncorrected'
+    df_fitness_copy.loc[df_fitness_copy['barcode'].isin(intersection), 'ngs_correction_status'] = 'exact_match'
+    df_fitness_copy['bc_sequence'] = df_fitness_copy['bc_sequence'].fillna(df_fitness_copy["barcode"])
 
     # Merge library data with fitness data
-    df_fitness = df_fitness.rename(columns={'barcode':'uncorrected_bc_sequence'})
-    merge = pd.merge(library, df_fitness, on='bc_sequence', how='right')
+    df_fitness_copy = df_fitness_copy.rename(columns={'barcode':'uncorrected_bc_sequence'})
+
+    uncorrected_level_cols = ["uncorrected_bc_sequence", "freq", 'baseline_freq', "n", 'ngs_correction_status']
+
+    grouping_cols = [col for col in df_fitness_copy.columns if col not in uncorrected_level_cols]
+
+    barcode_data_summed = df_fitness_copy.groupby(grouping_cols).agg(
+        total_n = ('n', 'sum'),
+        total_freq = ('freq', 'sum'),
+        total_bl_freq = ('baseline_freq', 'sum'),
+        n = ('n', list),
+        freq = ('freq', list),
+        uncorrected_bcs = ('uncorrected_bc_sequence', list),
+        ngs_correction_status = ('ngs_correction_status', list)
+    ).reset_index()
+
+    merge = pd.merge(library, barcode_data_summed, on='bc_sequence', how='right')
 
     return merge
