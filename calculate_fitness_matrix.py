@@ -63,7 +63,7 @@ def calculate_psi_freq_v2(counts_merge: pd.DataFrame, base_timepoint=0) -> pd.Da
     return a pandas DataFrame with row indexes of library,environment,replicate and columns corresponding
     to non-baseline timepoints and value of psi in frequency as calculated in the Boba-Seq paper.
 
-    The original counts_merge table is also modified to add N0, psi_freq, and lr_corr (psi-corrected log2 abundance)
+    The original counts_merge table is also modified to add N0, psi_freq although they are not used there.
     '''
     # Calculate psi-freq and psi-corrected lr
     # psi-freq is the derived pseudofrequency from the boba-seq paper, which works out to 1/sqrt(N0*N)
@@ -78,7 +78,6 @@ def calculate_psi_freq_v2(counts_merge: pd.DataFrame, base_timepoint=0) -> pd.Da
     counts_merge['N0'] = [N0_dict['N'][x] for x in list(zip(
         counts_merge['library'],counts_merge['environment'],counts_merge['replicate']))]
     counts_merge['psi_freq'] = 1 / np.sqrt(counts_merge['N0'] * counts_merge['N'])
-    #counts_merge['lr_corr'] = np.log2(counts_merge['freq'] + counts_merge['psi_freq'])
 
     # Calculate psi_freq pivot table
     df_psi_freq = pd.pivot_table(counts_merge,
@@ -118,7 +117,6 @@ def prep_and_filter_freq_table(counts_merge: pd.DataFrame, keep_dropouts=True, b
     ### Loop through each
     for key in tqdm(keys):
         ### g.groups[key] returns the set of indexes in counts_merge that are in that group which allows the subset by loc
-        ### This could presumably be done by operating on the groups in the groupby?
         counts_sub = counts_merge.loc[g.groups[key]]
         if len(counts_sub) > 0:
 
@@ -129,10 +127,11 @@ def prep_and_filter_freq_table(counts_merge: pd.DataFrame, keep_dropouts=True, b
                           columns='timepoint',
                           fill_value=fill_value).reset_index()
 
-                
             df_melt_long = df_pivot_wide.melt(id_vars=['library','environment','replicate','barcode'], value_name="freq")
 
-            ### Here we drop all things at later time points that aren't found in the baseline timepoint.
+            ### Here we drop all things at later time points that aren't found in the baseline timepoint by merging on baseline data
+            ### Thus the baseline data is complete, and later timepoints are the set of things found in baseline AND later
+            ### Keeping EVERYTHING here and filling in missing baseline_freq values would let us track things not detected at baseline
             df_merge = pd.merge(df_melt_long,
                     baseline_freqs,
                         on=['library','environment','replicate', 'barcode']
