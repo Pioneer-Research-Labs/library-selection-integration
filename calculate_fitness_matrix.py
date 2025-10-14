@@ -241,7 +241,7 @@ def prep_and_filter_freq_table(counts_merge: pd.DataFrame, keep_dropouts=True, b
     else:
         fill_value=np.nan
         
-    df_fitness = []
+    df_out = []
 
     ### Pull out the base_timepoint data and set the index as the unique comination of library,env,replicate,barcode
     baseline_freqs = counts_merge.loc[
@@ -274,45 +274,43 @@ def prep_and_filter_freq_table(counts_merge: pd.DataFrame, keep_dropouts=True, b
             #            on=['library','environment','replicate','timepoint']
             #           )
             
-            ### Here we drop all things at later time points that aren't found in the first timepoint
+            ### Here we drop all things at later time points that aren't found in the baseline timepoint.
             df_merge = pd.merge(df_melt_long,
                     baseline_freqs,
                         on=['library','environment','replicate', 'barcode']
                        )
-            
-            #df_merge["fitness"] = np.log2((df_merge["freq"] + df_merge["psi_freq"])) - np.log2((df_merge["baseline_freq"] + df_merge["psi_freq"]))
-            
-            df_fitness.append(df_merge)
+                        
+            df_out.append(df_merge)
 
-    df_fitness = pd.concat(df_fitness)
+    df_out = pd.concat(df_out)
 
     # Drop duplicate rows ### unclear why this would occur
-    df_fitness.dropna(inplace=True)
-    df_fitness.drop_duplicates(inplace=True)
+    df_out.dropna(inplace=True)
+    df_out.drop_duplicates(inplace=True)
 
     # Merge n information with fitness data
     merge_cols = ['library', 'environment', 'replicate','timepoint','barcode','n']
-    df_fitness = pd.merge(
-        df_fitness, counts_merge[merge_cols], on=['library', 'environment', 'replicate', 'timepoint', 'barcode'], how='left')
+    df_out = pd.merge(
+        df_out, counts_merge[merge_cols], on=['library', 'environment', 'replicate', 'timepoint', 'barcode'], how='left')
     
-    df_fitness['n'] = df_fitness['n'].fillna(0)
+    df_out['n'] = df_out['n'].fillna(0)
     bigN_table = counts_merge[['library', 'environment', 'replicate', 'timepoint', 'N']].drop_duplicates()
-    df_fitness = pd.merge(df_fitness, bigN_table, on=['library', 'environment', 'replicate', 'timepoint'])
+    df_out = pd.merge(df_out, bigN_table, on=['library', 'environment', 'replicate', 'timepoint'])
 
     # Keep only barcodes that exist in t=1 timepoint
     print('Filtering for barcodes that exist in first nonzero timepoint.')
-    print('Number of barcodes before filtering: ', len(df_fitness.barcode.unique()))
+    print('Number of barcodes found in at least one baseline sample: ', len(df_out.barcode.unique()))
 
-    timepoint_counts = df_fitness[df_fitness.timepoint == base_timepoint + 1].groupby(
+    timepoint_counts = df_out[df_out.timepoint == base_timepoint + 1].groupby(
         ['library','environment','replicate','barcode'])['n'].sum()
     bcs_to_keep = timepoint_counts[timepoint_counts > 0].index
-    df_fitness.set_index(['library','environment','replicate','barcode'], inplace=True)
-    df_fitness = df_fitness.loc[bcs_to_keep]
-    df_fitness.reset_index(inplace=True)
+    df_out.set_index(['library','environment','replicate','barcode'], inplace=True)
+    df_out = df_out.loc[bcs_to_keep]
+    df_out.reset_index(inplace=True)
 
-    print('Number of barcodes after filtering: ', len(df_fitness.barcode.unique()))
+    print('Number of barcodes after filtering: ', len(df_out.barcode.unique()))
 
-    return df_fitness
+    return df_out
 
 
 def calculate_fitness_final(frequency_table, psi_freq_table, freq_column='total_freq', bl_freq_column='total_bl_freq'):

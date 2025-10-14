@@ -70,10 +70,10 @@ if __name__ == '__main__':
         print('Calculating psi-freq...')
         df_psi_freq = calculate_psi_freq_v2(counts_merge, base_timepoint=base_timepoint)
 
-        # Calculate fitness
-        print('Calculating fitness...')
-        prepped_freq_table = prep_and_filter_freq_table(counts_merge, df_psi_freq, base_timepoint=base_timepoint)
-
+        # Prep table by removing barcodes not found at baseline and baseline + 1
+        # adding 0 frequency for other timepoints where not detected
+        print('Preparing frequency table for barcode correction...')
+        prepped_freq_table = prep_and_filter_freq_table(counts_merge, base_timepoint=base_timepoint)
 
         # Load base library data
         library_id = g[2].split('-')[0] # Only use the prefix library ID 
