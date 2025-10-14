@@ -6,3 +6,4 @@ test_data
 .fileid.db
 .nextflow*
 .DS_Store
+.ipynb
