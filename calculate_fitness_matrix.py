@@ -4,12 +4,7 @@ import numpy as np
 from tqdm import tqdm
 from os.path import join
 
-# Pseudocode
-# Pivot table on nonzero days to get lr_corr wide format
-# Get unique indices to subset the day 0 data (otherwise we are inefficient and use lots of useless barcodes)
-# Calculate lr_corr - lr0_corr
-
-def load_metadata(results_path, metadata_file):
+def load_metadata(results_path: str, metadata_file: str) -> tuple[dict, pd.DataFrame]:
     '''
     Load metadata from file. Returns a tuple of length two comprised of:
     1. A dictionary of sample groupings based on library, environment and base library
@@ -34,6 +29,7 @@ def load_metadata(results_path, metadata_file):
     metadata.reset_index(inplace=True)
     
     return sample_dict, metadata
+
 def load_and_merge_data(results_path: str, metadata: pd.DataFrame, samples: list, min_counts: int) -> pd.DataFrame:
     '''
     Load counts and metadata and merge
@@ -178,3 +174,38 @@ def calculate_fitness_final(frequency_table, psi_freq_table, freq_column='total_
     np.log2((fitness_dataframe[bl_freq_column] + fitness_dataframe["psi_freq"]))
 
     return fitness_dataframe
+
+
+def fitness_dataframe_group_metrics(data_group: pd.DataFrame, n_name: str = 'total_n', freq_name: str = "total_freq") -> pd.Series:
+    '''
+    Internal function that expects a pandas dataframe of integrated short read and long read fitness data
+    and outputs a pandas series corresponding to per-sample metrics. Used within a groupby.apply by
+    generate_per_sample_QC_metrics.
+    '''
+    out_series = {}
+
+    ### Total Metrics
+    out_series["bc_n"] = len(data_group["bc_sequence"])
+    out_series["bc_n_unique"] = len(data_group["bc_sequence"].unique())
+    out_series["bc_n_detected"] = (data_group[n_name] > 0).sum()
+    out_series["bc_median_fitness"] = np.median(data_group["fitness"])
+    out_series["bc_freq_sum"] = data_group[freq_name].sum()
+
+    ### Unmatched -- filter by removing rows missing total 
+    matched_bc_data = data_group[~data_group["bc_length"].isna()]
+    out_series["bc_lib_matched_n"] = len(matched_bc_data["bc_sequence"])
+    out_series["bc_lib_matched_n_detected"] = (matched_bc_data[n_name] > 0).sum()
+    out_series["bc_lib_matched_freq_sum"] = matched_bc_data[freq_name].sum()
+
+    ### Unmatched -- filter by removing rows missing total 
+    empty_insert_data = data_group[data_group["empty_insert"] == True]
+    out_series["empty_bc_n"] = len(empty_insert_data["bc_sequence"])
+    out_series["empty_bc_n_detected"] = (empty_insert_data[n_name] > 0).sum()
+    out_series["empty_bc_median_fitness"] = np.median(empty_insert_data["fitness"])
+    out_series["empty_bc_freq_sum"] = empty_insert_data[freq_name].sum()
+
+    return(pd.Series(out_series))
+
+def generate_per_sample_QC_metrics(fitness_dataframe: pd.DataFrame) -> pd.DataFrame:
+    qc_table = fitness_dataframe.groupby(["library", "environment", "timepoint", "replicate"]).apply(fitness_dataframe_group_metrics).reset_index()
+    return qc_table

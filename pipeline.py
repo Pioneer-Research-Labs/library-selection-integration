@@ -9,7 +9,8 @@ from calculate_fitness_matrix import (
     load_and_merge_data,
     calculate_psi_freq_v2,
     prep_and_filter_freq_table,
-    calculate_fitness_final
+    calculate_fitness_final,
+    generate_per_sample_QC_metrics
 )
 from integrate_fitness_data import (
     load_library_data,
@@ -112,3 +113,10 @@ if __name__ == '__main__':
         print('Saving integrated fitness data...')
         merge_fitness.to_parquet(join(out_path, out_name + '.parquet'), index=False)
         print('Data saved.')
+
+        # Generate some exploratory QC metrics that can be used to assess sample quality
+        print('Generating per-sample QC metrics...')
+        qc_table = generate_per_sample_QC_metrics(merge_fitness)
+        qc_table.to_csv(join(out_path, out_name + '_qc_metrics.csv'), index=False)
+        print('QC table saved.')
+

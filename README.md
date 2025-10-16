@@ -55,7 +55,16 @@ python pipeline.py --short_read_path <SHORT_READ_DIR> [--metadata <METADATA_CSV>
 ---
 
 ## 📂 Input Files
-These are generated from running `short-read-pipeline`.
+
+1. A metadata file containing information linking samples to experimental conditions. Must contain at minimum the following columns in any order:
+   * sample (str) -- a sample identifier that was used for the short-read-pipeline
+   * library (str) -- a library identifier corresponding the the library that was in the selection experiment (i.e. the base library inserted into a host)
+   * environment (str) -- the condition in which the selection occurred
+   * base_library(str) -- the donor library ID that has been characterized by long read sequencing and is deposited in 's3://pioneer-sequencing/libraries'
+   * timepoint (int) -- must contain the value of base_timepoint and base_timepoint + 1 based on current filtering strategies
+   * replicate (int/str) -- which replicate
+
+2. Barcode count files generated from running `short-read-pipeline`. The output files are located in: short_read_path/sample/sample_min_counts_barcodes_freq.csv
 
 ---
 
@@ -67,7 +76,7 @@ For each unique `(library, environment)` group, a single output files is generat
    → Fitness data with library integration and barcode correction
 
 Output columns:
-* bc_length -> library_correction_status -- Data derived from the underlying library
+* bc_length -> library_correction_status -- Data derived from the underlying base_library file that is merged on to short read data.
 * bc_sequence: The error-corrected sequence used to merge short read barcodes to the long read library data. Occurs exactly once per combination of library, environment, replicate, and timepoint.
 * library -- Library name from metadata file
 * environment -- Environment from metadata file
@@ -87,6 +96,11 @@ Output columns:
    * uncorrected == was not observed in the library and could not be corrected. The bc_sequence matches the uncorrected_bc for this entry, however there will be no corresponding library level information.
 * psi_freq: The pseudocount frequency value derived from the psi calculation comparing this sample and its correponding baseline. Added to total_freq and total_bl_freq before fitness is calculated.
 * Fitness: The log2 fold change of a bc_sequence frequncy compared to its baseline frequency after addition of psi_freq.
+
+`fitness_integrated_<library>_<environment>_qc_metrics.csv` -> Per-sample QC metrics including information about total barcodes, number of barcodes detected, and 
+basic frequency and fitness information.
+
+
 
 ## Using the output
 
