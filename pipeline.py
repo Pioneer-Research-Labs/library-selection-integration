@@ -4,6 +4,8 @@
 import argparse
 import pandas as pd
 from os.path import join
+from os import makedirs
+from datetime import datetime
 from calculate_fitness_matrix import (
     load_metadata,
     load_and_merge_data,
@@ -24,32 +26,30 @@ if __name__ == '__main__':
     # Get short read results path and metadata filename
     parser = argparse.ArgumentParser(
         description="Pipeline for calculating fitness and integrating with library data.")
+    parser.add_argument("--experiment_ID", type=str, required = True, help="Experiment ID. Used to sort results in selection_parent_dir and as a prefix for output files.")
     parser.add_argument("--short_read_path", type=str, required=True, help="Path to short read results.")
-    parser.add_argument("--metadata", type=str, required=False, help="Name of metadata file (default='metadata.csv').")
-    parser.add_argument("--out_prefix", type=str, required=False, help="Name of output fitness file prefix (default='fitness').")
-    parser.add_argument("--out_path", type=str, required=False, default=None, help="Path to write out files, if not specified is short_read_path")
-    parser.add_argument("--base_timepoint", type=int, required=False, help="Base timepoint to use as reference (default=0).")
+    parser.add_argument("--metadata", type=str, required=False, default='metadata.csv', help="Name of metadata file (default='metadata.csv').")
+    parser.add_argument("--selection_parent_dir", type=str, required=False, default='s3://pioneer-analysis/library-selection-output', 
+                        help="Parent directory for selection outputs. default='s3://pioneer-analysis/library-selection-output')")
+    parser.add_argument("--base_timepoint", type=int, required=False, default=0, help="Base timepoint to use as reference (default=0).")
     parser.add_argument("--min_counts", type=int, required=False, default=0, help="Min counts set by short read pipeline (default = 0)")
 
     args = parser.parse_args()
 
     short_read_path = args.short_read_path
-    if args.metadata:
-        metadata_file = args.metadata
-    else:
-        metadata_file = 'metadata.csv'
-    if args.out_prefix:
-        out_prefix = args.out_prefix
-    else:
-        out_prefix = 'fitness'
-    if args.base_timepoint:
-        base_timepoint = args.base_timepoint
-    else:
-        base_timepoint = 0
-    if args.out_path is None:
-        out_path = short_read_path
-    else:
-        out_path = args.out_path
+    metadata_file = args.metadata
+    base_timepoint = args.base_timepoint
+    experiment_id = args.experiment_ID
+
+    # Get the current datetime object
+    now = datetime.now()
+    # Format the datetime object into the desired string format
+    formatted_datetime = now.strftime("%Y_%m_%d_%H_%M_%S")
+
+    output_path = join(args.selection_parent_dir, experiment_id, formatted_datetime)
+    ### if you aren't on S3, make you parent directory
+    if not output_path.startswith("s3:"):
+        makedirs(output_path)
 
     # Load metadata
     print('Loading metadata...')
@@ -109,14 +109,14 @@ if __name__ == '__main__':
         merge_fitness = calculate_fitness_final(frequency_table = merge, psi_freq_table = df_psi_freq)
 
         # Save merged data
-        out_name = out_prefix + '_integrated_' + str(g[0]) + '_' + str(g[1])
+        out_name = experiment_id + '_selection_' + str(g[0]) + '_' + str(g[1])
         print('Saving integrated fitness data...')
-        merge_fitness.to_parquet(join(out_path, out_name + '.parquet'), index=False)
+        merge_fitness.to_parquet(join(output_path, out_name + '.parquet'), index=False)
         print('Data saved.')
 
         # Generate some exploratory QC metrics that can be used to assess sample quality
         print('Generating per-sample QC metrics...')
         qc_table = generate_per_sample_QC_metrics(merge_fitness)
-        qc_table.to_csv(join(out_path, out_name + '_qc_metrics.csv'), index=False)
+        qc_table.to_csv(join(output_path, out_name + '_qc_metrics.csv'), index=False)
         print('QC table saved.')
 
