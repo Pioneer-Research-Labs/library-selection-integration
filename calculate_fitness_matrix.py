@@ -185,6 +185,7 @@ def fitness_dataframe_group_metrics(data_group: pd.DataFrame, n_name: str = 'tot
     out_series = {}
 
     ### Total Metrics
+    out_series["n_short_reads"] = data_group["N"].unique()[0]
     out_series["bc_n"] = len(data_group["bc_sequence"])
     out_series["bc_n_unique"] = len(data_group["bc_sequence"].unique())
     out_series["bc_n_detected"] = (data_group[n_name] > 0).sum()

@@ -97,10 +97,27 @@ Output columns:
 * psi_freq: The pseudocount frequency value derived from the psi calculation comparing this sample and its correponding baseline. Added to total_freq and total_bl_freq before fitness is calculated.
 * Fitness: The log2 fold change of a bc_sequence frequncy compared to its baseline frequency after addition of psi_freq.
 
-`fitness_integrated_<library>_<environment>_qc_metrics.csv` -> Per-sample QC metrics including information about total barcodes, number of barcodes detected, and 
-basic frequency and fitness information.
+`fitness_integrated_<library>_<environment>_qc_metrics.csv` -> Per-sample QC metrics including information about total barcodes, 
+number of barcodes detected, and basic frequency and fitness information.
 
-
+Output columns:
+* Sequencing info
+   * n_short_reads -- total N of reads that came out of the short read pipeline, used for calculating frequencies
+* All error-corrected barcodes (bc_sequences)
+   * bc_n -- number barcodes
+   * bc_n_unique -- number of unique barcodes. Expected to match bc_n but is left in for pipeline debugging
+   * bc_n_detected -- how many barcodes are detected above 0
+   * bc_median_fitness -- median fitness value for all barcodes
+   * bc_freq_sum -- sum of frequencies for all barcodes surviving analysis. Should be near 1 unless lots of data lost via filtering.
+* Barcodes that match the underlying long read library
+   * bc_lib_matched_n -- number of barcodes that are matched to the underlying long read library
+   * bc_lib_matched_n_detected -- number of barcodes that match the underlying long read library and are detected
+   * bc_lib_matched_freq_sum -- summed frequencye of barcodes that match the underlying long read library
+* Empty insert barcodes
+   * empty_bc_n -- number of barcodes
+   * empty_bc_n_detected -- number of barcodes detected
+   * empty_bc_median_fitness -- median fitness of empty inserts
+   * empty_bc_freq_sum -- summed frequency of empty inserts
 
 ## Using the output
 
