@@ -56,6 +56,9 @@ if __name__ == '__main__':
     sample_dict, metadata = load_metadata(short_read_path, metadata_file)
     print('Metadata loaded.')
 
+    # Empty list to hold QC metrics
+    qc_table_list = []
+
     # For each library/environment/base_library combination, run the pipeline
     groups = sample_dict.keys()
     for g in groups:
@@ -116,7 +119,23 @@ if __name__ == '__main__':
 
         # Generate some exploratory QC metrics that can be used to assess sample quality
         print('Generating per-sample QC metrics...')
-        qc_table = generate_per_sample_QC_metrics(merge_fitness)
-        qc_table.to_csv(join(output_path, out_name + '_qc_metrics.csv'), index=False)
+        
+        qc_table = generate_per_sample_QC_metrics(counts_merge, merge_fitness)
+        qc_table_list.append(qc_table)
+
         print('QC table saved.')
+
+# Prepare a table of QC metrics for the whole run
+    expected_groups_df = metadata[["library", "environment", "timepoint", "replicate"]].drop_duplicates()
+    qc_combined = pd.concat(qc_table_list)
+    qc_combined_final = pd.merge(expected_groups_df, qc_combined, how = "left", on = ["library", "environment", "timepoint", "replicate"])
+
+    ### Fix columns to 0 or NaN as appropriate
+    zero_cols = ["N", "bc_raw_n", "bc_n", "bc_n_detected", "bc_lib_matched_n", 
+                 "bc_lib_matched_n_detected", "empty_bc_n", "empty_bc_n_detected"]
+    
+    for col in zero_cols:
+        qc_combined_final[col] = qc_combined_final[col].fillna(0)
+    
+    qc_combined_final.to_csv(join(output_path, "per_sample_QC.csv"), index=False)
 
