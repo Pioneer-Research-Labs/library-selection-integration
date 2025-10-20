@@ -37,8 +37,8 @@ Ensure the following scripts are in the same directory or importable:
 ## ▶️ Usage
 
 ```bash
-python pipeline.py --short_read_path <SHORT_READ_DIR> [--metadata <METADATA_CSV>] /
-    [--out_prefix <OUTPUT_PREFIX>] [--out_path <OUTPUT_PATH>] /
+python pipeline.py --experiment_ID <EXPT_ID> --short_read_path <SHORT_READ_DIR> /
+    [--metadata <METADATA_CSV>] / [--selection_parent_dir <OUTPUT_PATH>] /
     [--base_timepoint <TIMEPOINT>] [--min_counts <MIN_COUNTS>]
 ```
 
@@ -46,10 +46,10 @@ python pipeline.py --short_read_path <SHORT_READ_DIR> [--metadata <METADATA_CSV>
 
 | Argument            | Type  | Required | Description                                             |
 | ------------------- | ----- | -------- | ------------------------------------------------------- |
+| `--experiment_ID` | `str` | ✅        | Short-hand experiment ID. Used to place results within `selection_parent_dir` and name output files.        |
 | `--short_read_path` | `str` | ✅        | Path to directory containing short-read results (this should usually be `results`).        |
 | `--metadata`        | `str` | ❌        | Metadata CSV filename (default: `metadata.csv`).        |
-| `--out_prefix`      | `str` | ❌        | Prefix for output files (default: `fitness`).           |
-| `--out_path`        | `str` | ❌        | Output path for parquet files (default: `short_read_path`).  |
+| `--selection_parent_dir` | `str` | ❌   | The parent directory in which to place results. Default `s3://pioneer-analysis/library-selection-output` |
 | `--base_timepoint`  | `int` | ❌        | Timepoint used as the fitness reference (default: `0`). |
 | `--min_counts`      | `int` | ❌        | Min count for barcode reporting as set in short-read pipeline. (default: `0`) |
 ---
@@ -64,7 +64,7 @@ python pipeline.py --short_read_path <SHORT_READ_DIR> [--metadata <METADATA_CSV>
    * timepoint (int) -- must contain the value of base_timepoint and base_timepoint + 1 based on current filtering strategies
    * replicate (int/str) -- which replicate
 
-2. Barcode count files generated from running `short-read-pipeline`. The output files are located in: short_read_path/sample/sample_min_counts_barcodes_freq.csv
+2. Barcode count files generated from running `short-read-pipeline`. The output files are located in: `short_read_path/sample/sample_<min_counts>_barcodes_freq.csv`
 
 ---
 
