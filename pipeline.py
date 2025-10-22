@@ -4,51 +4,62 @@
 import argparse
 import pandas as pd
 from os.path import join
+from os import makedirs
+from datetime import datetime
 from calculate_fitness_matrix import (
     load_metadata,
     load_and_merge_data,
-    calculate_psi_freq,
-    calculate_fitness
+    calculate_psi_freq_v2,
+    prep_and_filter_freq_table,
+    calculate_fitness_final,
+    generate_per_sample_QC_metrics
 )
 from integrate_fitness_data import (
     load_library_data,
+    filter_corrected_library_data,
     get_filtered_barcodes_to_correct,
     calculate_correction_map,
-    create_integrated_dataframe  
+    create_integrated_dataframe 
 )
 
 if __name__ == '__main__':
     # Get short read results path and metadata filename
     parser = argparse.ArgumentParser(
         description="Pipeline for calculating fitness and integrating with library data.")
+    parser.add_argument("--experiment_ID", type=str, required = True, help="Experiment ID. Used to sort results in selection_parent_dir and as a prefix for output files.")
     parser.add_argument("--short_read_path", type=str, required=True, help="Path to short read results.")
-    parser.add_argument("--metadata", type=str, required=False, help="Name of metadata file (default='metadata.csv').")
-    parser.add_argument("--out_prefix", type=str, required=False, help="Name of output fitness file prefix (default='fitness').")
-    parser.add_argument("--base_timepoint", type=int, required=False, help="Base timepoint to use as reference (default=0).")
+    parser.add_argument("--metadata", type=str, required=False, default='metadata.csv', help="Name of metadata file (default='metadata.csv').")
+    parser.add_argument("--selection_parent_dir", type=str, required=False, default='s3://pioneer-analysis/library-selection-output', 
+                        help="Parent directory for selection outputs. default='s3://pioneer-analysis/library-selection-output')")
+    parser.add_argument("--base_timepoint", type=int, required=False, default=0, help="Base timepoint to use as reference (default=0).")
     parser.add_argument("--min_counts", type=int, required=False, default=0, help="Min counts set by short read pipeline (default = 0)")
 
     args = parser.parse_args()
 
     short_read_path = args.short_read_path
-    if args.metadata:
-        metadata_file = args.metadata
-    else:
-        metadata_file = 'metadata.csv'
-    if args.out_prefix:
-        out_prefix = args.out_prefix
-    else:
-        out_prefix = 'fitness'
-    if args.base_timepoint:
-        base_timepoint = args.base_timepoint
-    else:
-        base_timepoint = 0
+    metadata_file = args.metadata
+    base_timepoint = args.base_timepoint
+    experiment_id = args.experiment_ID
+
+    # Get the current datetime object
+    now = datetime.now()
+    # Format the datetime object into the desired string format
+    formatted_datetime = now.strftime("%Y_%m_%d_%H_%M_%S")
+
+    output_path = join(args.selection_parent_dir, experiment_id, formatted_datetime)
+    ### if you aren't on S3, make you parent directory
+    if not output_path.startswith("s3:"):
+        makedirs(output_path)
 
     # Load metadata
     print('Loading metadata...')
     sample_dict, metadata = load_metadata(short_read_path, metadata_file)
     print('Metadata loaded.')
 
-    # For each library/environment/ combination, run the pipeline
+    # Empty list to hold QC metrics
+    qc_table_list = []
+
+    # For each library/environment/base_library combination, run the pipeline
     groups = sample_dict.keys()
     for g in groups:
         samples = sample_dict[g]
@@ -61,30 +72,27 @@ if __name__ == '__main__':
 
         # Calculate psi-freq
         print('Calculating psi-freq...')
-        df_psi_freq = calculate_psi_freq(counts_merge, base_timepoint=base_timepoint)
+        df_psi_freq = calculate_psi_freq_v2(counts_merge, base_timepoint=base_timepoint)
 
-        # Calculate fitness
-        print('Calculating fitness...')
-        df_fitness = calculate_fitness(counts_merge, df_psi_freq, base_timepoint=base_timepoint)
-        
-        # Save fitness data
-        out_name = out_prefix + '_' + str(g[0]) + '_' + str(g[1])
-        print('Saving raw fitness data...')
-        df_fitness.to_parquet(join(short_read_path, out_name + '.parquet'), index=False)
-        print('Data saved.')
+        # Prep table by removing barcodes not found at baseline and baseline + 1
+        # adding 0 frequency for other timepoints where not detected
+        print('Preparing frequency table for barcode correction...')
+        prepped_freq_table = prep_and_filter_freq_table(counts_merge, base_timepoint=base_timepoint)
 
         # Load base library data
         library_id = g[2].split('-')[0] # Only use the prefix library ID 
         print('Loading base library data...')
         base_library = load_library_data(library_id)
         print('Base library data loaded.')
+        
+        if 'library_correction_status' in base_library.columns:
+            base_library = filter_corrected_library_data(base_library)
 
         # Merge library data with fitness data
         print('Correcting barcodes...')
         
         # Get filtered barcodes to correct
-        lr_filter, sr_filter, intersection = get_filtered_barcodes_to_correct(base_library, df_fitness)
-
+        lr_filter, sr_filter, intersection = get_filtered_barcodes_to_correct(base_library, prepped_freq_table)
         
         # Calculate correction map
         correction_map = calculate_correction_map(lr_filter, sr_filter)
@@ -94,15 +102,40 @@ if __name__ == '__main__':
 
         # Create integrated dataframe
         merge = create_integrated_dataframe(
-            base_library, df_fitness, intersection, correction_map)
+            base_library, prepped_freq_table, intersection, correction_map)
         
         print('Barcodes corrected.')
 
         print('Uncorrected barcodes: ', 
-              len(merge[merge['ngs_correction_status'] == 'uncorrected'].uncorrected_bc_sequence.unique()))
+              merge["ngs_correction_status"].apply(lambda x:x == ["uncorrected"]).sum())
+
+        merge_fitness = calculate_fitness_final(frequency_table = merge, psi_freq_table = df_psi_freq)
 
         # Save merged data
-        out_name = out_prefix + '_integrated_' + str(g[0]) + '_' + str(g[1])
+        out_name = experiment_id + '_selection_' + str(g[0]) + '_' + str(g[1])
         print('Saving integrated fitness data...')
-        merge.to_parquet(join(short_read_path, out_name + '.parquet'), index=False)
+        merge_fitness.to_parquet(join(output_path, out_name + '.parquet'), index=False)
         print('Data saved.')
+
+        # Generate some exploratory QC metrics that can be used to assess sample quality
+        print('Generating per-sample QC metrics...')
+        
+        qc_table = generate_per_sample_QC_metrics(counts_merge, merge_fitness)
+        qc_table_list.append(qc_table)
+
+        print('QC table saved.')
+
+# Prepare a table of QC metrics for the whole run
+    expected_groups_df = metadata[["library", "environment", "timepoint", "replicate"]].drop_duplicates()
+    qc_combined = pd.concat(qc_table_list)
+    qc_combined_final = pd.merge(expected_groups_df, qc_combined, how = "left", on = ["library", "environment", "timepoint", "replicate"])
+
+    ### Fix columns to 0 or NaN as appropriate
+    zero_cols = ["N", "bc_raw_n", "bc_n", "bc_n_detected", "bc_lib_matched_n", 
+                 "bc_lib_matched_n_detected", "empty_bc_n", "empty_bc_n_detected"]
+    
+    for col in zero_cols:
+        qc_combined_final[col] = qc_combined_final[col].fillna(0)
+    
+    qc_combined_final.to_csv(join(output_path, "per_sample_QC.csv"), index=False)
+
